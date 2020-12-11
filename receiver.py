@@ -15,6 +15,8 @@ R_ADDR = (R_HOST, R_PORT)
 window_size = 10 # dimensiunea ferestrei glisante a receptorului
 failure_chance = 0.1 # sansa ca un pachet sa nu ajunga la receptor ( 0.1 = 10% )
 pack_size = 30 # dimensiunea pachetului (lungimea maxima a sirului de caractere din pachetul sender-ului)
+timeout = 5000 # timpul, in milisecunde, in care socket-ul asteapta un pachet
+rcv_timeout = timeout * 2 # durata de asteptare a unui nou pachet pentru receiver pana se inchide
 
 pack_s = package('info', '', 0) # pachetul primit de la sender este de tip informatie(un sir de caractere)
 pack_r = package('ack', True, 0) # pachetul trimis de receiver va fi de tip ack
@@ -25,22 +27,24 @@ seq_num = 0	# pozitia sirurului de caractere din vectorul de propozitii
 # util in buffer, pentru a simula glisarea ferestrei
 
 
-# initial buffer-ul va fi umplut cu frame-uri cu informatii nule si fara confirmare de ack
-# iar vectorul de propozitii primite va fi umplut cu valori nule
+# initial buffer-ul va fi umplut cu frame-uri cu informatii nule si fara confirmare cu ack
+# iar vectorul de parti ale propozitiei primite va fi umplut cu valori nule
 for i in range(window_size):
 	window_r.append(frame('', False, seq_num))
 	seq_num += 1
 	sentence_pcs.append('')
 
 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-s.bind(('0.0.0.0', R_PORT))
+s.bind(R_ADDR)
 
 while True:
 	try:
 		# caut un raspuns in buffer-ul de receptie
 		response, _, _ = select.select([s], [], [], 1)
+		# asteapta pana receptioneaza un pachet data_snd cu adresa addr_snd, venit de la sender
+		# cand se primeste un raspuns de la sender, timpul de timeout al receiver-ului se reseteaza la valoarea initiala
 		if response:
-			# asteapta pana receptioneaza un pachet data_snd cu adresa addr_snd, venit de la sender
+			rcv_timeout = timeout * 2;
 			data_snd, addr_snd = s.recvfrom(1024)
 
 			# daca adresa primita coincide cu adresa sender-ului
@@ -53,7 +57,7 @@ while True:
 
 
 				# daca pachetul contine un fragment de propozitie( type = info )
-				# si secventa de unde provine nu depaseste numarul maxim de secvente curent(seq_num)
+				# si secventa de unde provine nu depaseste numarul maxim curent de secvente(seq_num)
 				if pack_s.type == 'info' and pack_s.seq_num < seq_num:
 					# este preluat numarul de secventa din primul frame din fereastra
 					seq_begin = window_r[0].seq_num
@@ -79,10 +83,13 @@ while True:
 					sentence_pcs.append('')
 					seq_num += 1
 
-				# Oprim receptionarea pachetelor cand primul frame din fereastra nu are nici o informatie(adica am primit toate pachete de la receiver)
+				# Cand nu mai exista pachete in receiver, se scade timpul de timeout(practic receiver-ul asteapta pachete noi care sa umple macar un frame
+				# din fereastra pana la expirarea timpului)
 				if window_r[0].info == '':
+					rcv_timeout -= 1;
+				# Cand timpul de asteptare a expirat, receive-ul considera ca s-au receptionat toate pachetele si astfel se termina receptia
+				if rcv_timeout == 0:
 					break
-
 	except KeyboardInterrupt:
 		break
 

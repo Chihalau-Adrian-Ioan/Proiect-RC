@@ -320,7 +320,7 @@ def receiver(winSize, timeEnd, failChance):
     seq_num = 0  # pozitia sirurului de caractere din vectorul de propozitii
     # util in buffer, pentru a simula glisarea ferestrei
 
-    # initial buffer-ul va fi umplut cu frame-uri cu informatii nule si fara confirmare cu ack
+    # initial fereastra va fi umpluta cu frame-uri cu informatii nule si fara confirmare cu ack
     # iar vectorul de parti ale propozitiei primite va fi umplut cu valori nule
     for i in range(window_size):
         window_r.append(frame('', False, seq_num))
